@@ -1,0 +1,11 @@
+order_id,order_date,customer_name,region,product,quantity,unit_price
+1001,2026-11-01,Alex Santos,North,Laptop,1,45000
+1002,2026-11-02,Bea Cruz,South,Mouse,2,650
+1003,2026-11-02,Carlo Reyes,Central,Keyboard,1,1800
+1004,2026-11-03,Dana Lim,North,Monitor,2,8500
+1005,2026-11-04,Eli Garcia,South,USB Hub,3,750
+1006,2026-11-05,Faye Tan,Central,Laptop,1,45000
+1006,2026-11-05,Faye Tan,Central,Laptop,1,45000
+1007,2026-11-06,Gio Ramos,,Webcam,2,1200
+1008,2026-11-07,Hana Flores,North,Headset,1,2200
+1009,2026-11-08,Ivan Dela Cruz,South,Monitor,1,8500
