@@ -39,3 +39,57 @@ jobs:
           path: outputs/
           if-no-files-found: error
           retention-days: 14
+
+      - name: Email ETL outputs
+        env:
+          MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
+          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+          MAIL_TO: ${{ secrets.MAIL_TO }}
+        run: |
+          python - <<'PY'
+          import os
+          import smtplib
+          from email.message import EmailMessage
+          from pathlib import Path
+
+          sender = os.environ["MAIL_USERNAME"]
+          password = os.environ["MAIL_PASSWORD"]
+          recipient = os.environ["MAIL_TO"]
+          output_dir = Path("outputs")
+
+          files = sorted(p for p in output_dir.iterdir() if p.is_file())
+          if not files:
+              raise RuntimeError("No ETL output files were generated.")
+
+          message = EmailMessage()
+          message["Subject"] = "Sales ETL Pipeline - Execution Successful"
+          message["From"] = sender
+          message["To"] = recipient
+          message.set_content(
+              "Your Sales ETL pipeline completed successfully. "
+              "The generated output files are attached.\n\n"
+              f"Attached files: {', '.join(p.name for p in files)}"
+          )
+
+          for path in files:
+              if path.suffix == ".csv":
+                  maintype, subtype = "text", "csv"
+              elif path.suffix == ".parquet":
+                  maintype, subtype = "application", "octet-stream"
+              elif path.suffix == ".duckdb":
+                  maintype, subtype = "application", "octet-stream"
+              else:
+                  maintype, subtype = "application", "octet-stream"
+              message.add_attachment(
+                  path.read_bytes(),
+                  maintype=maintype,
+                  subtype=subtype,
+                  filename=path.name,
+              )
+
+          with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+              smtp.login(sender, password)
+              smtp.send_message(message)
+
+          print(f"Sent {len(files)} attachment(s) to {recipient}")
+          PY
