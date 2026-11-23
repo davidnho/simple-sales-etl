@@ -27,7 +27,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run data quality tests
-        run: pytest -v
+        run: python -m pytest -v
 
       - name: Execute ETL pipeline
         run: python run_etl.py
