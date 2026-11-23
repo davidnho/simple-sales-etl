@@ -44,7 +44,7 @@ jobs:
         env:
           MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
           MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
-          MAIL_TO: ${{ secrets.MAIL_TO }}
+          MAIL_TO: noelsdavid@gmail.com
         run: |
           python - <<'PY'
           import os
@@ -52,11 +52,25 @@ jobs:
           from email.message import EmailMessage
           from pathlib import Path
 
-          sender = os.environ["MAIL_USERNAME"]
-          password = os.environ["MAIL_PASSWORD"]
-          recipient = os.environ["MAIL_TO"]
-          output_dir = Path("outputs")
+          sender = os.environ.get("MAIL_USERNAME", "").strip()
+          password = os.environ.get("MAIL_PASSWORD", "").strip()
+          recipient = os.environ["MAIL_TO"].strip()
 
+          missing = [
+              name for name, value in (
+                  ("MAIL_USERNAME", sender),
+                  ("MAIL_PASSWORD", password),
+              ) if not value
+          ]
+          if missing:
+              raise RuntimeError(
+                  "Missing GitHub Actions secret(s): "
+                  + ", ".join(missing)
+                  + ". Add them under Settings > Secrets and variables > Actions "
+                    "for this repository, using the exact secret names."
+              )
+
+          output_dir = Path("outputs")
           files = sorted(p for p in output_dir.iterdir() if p.is_file())
           if not files:
               raise RuntimeError("No ETL output files were generated.")
@@ -74,10 +88,6 @@ jobs:
           for path in files:
               if path.suffix == ".csv":
                   maintype, subtype = "text", "csv"
-              elif path.suffix == ".parquet":
-                  maintype, subtype = "application", "octet-stream"
-              elif path.suffix == ".duckdb":
-                  maintype, subtype = "application", "octet-stream"
               else:
                   maintype, subtype = "application", "octet-stream"
               message.add_attachment(
@@ -87,7 +97,7 @@ jobs:
                   filename=path.name,
               )
 
-          with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+          with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as smtp:
               smtp.login(sender, password)
               smtp.send_message(message)
 
