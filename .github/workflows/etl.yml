@@ -2,7 +2,7 @@ name: Sales ETL Pipeline
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
   workflow_dispatch:
   schedule:
     - cron: "0 0 * * *" # Daily at 00:00 UTC (08:00 Philippines time)
@@ -27,7 +27,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run data quality tests
-        run: pytest -v
+        run: python -m pytest -v
 
       - name: Execute ETL pipeline
         run: python run_etl.py
@@ -39,3 +39,63 @@ jobs:
           path: outputs/
           if-no-files-found: error
           retention-days: 14
+
+      - name: Email ETL outputs
+        env:
+          MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
+          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+          MAIL_TO: noelsdavid@gmail.com
+        run: |
+          python - <<'PY'
+          import os
+          import smtplib
+          from email.message import EmailMessage
+          from pathlib import Path
+
+          sender = os.environ.get("MAIL_USERNAME", "").strip()
+          password = os.environ.get("MAIL_PASSWORD", "").strip()
+          recipient = os.environ["MAIL_TO"].strip()
+
+          missing = [
+              name for name, value in (
+                  ("MAIL_USERNAME", sender),
+                  ("MAIL_PASSWORD", password),
+              ) if not value
+          ]
+          if missing:
+              raise RuntimeError(
+                  "Missing GitHub Actions secret(s): "
+                  + ", ".join(missing)
+                  + ". Check repository Settings > Secrets and variables > Actions."
+              )
+
+          output_dir = Path("outputs")
+          files = sorted(p for p in output_dir.iterdir() if p.is_file())
+          if not files:
+              raise RuntimeError("No ETL output files were generated.")
+
+          message = EmailMessage()
+          message["Subject"] = "Sales ETL Pipeline - Execution Successful"
+          message["From"] = sender
+          message["To"] = recipient
+          message.set_content(
+              "Your Sales ETL pipeline completed successfully. "
+              "The generated output files are attached.\n\n"
+              f"Attached files: {', '.join(p.name for p in files)}"
+          )
+
+          for path in files:
+              maintype, subtype = ("text", "csv") if path.suffix == ".csv" else ("application", "octet-stream")
+              message.add_attachment(
+                  path.read_bytes(),
+                  maintype=maintype,
+                  subtype=subtype,
+                  filename=path.name,
+              )
+
+          with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as smtp:
+              smtp.login(sender, password)
+              smtp.send_message(message)
+
+          print(f"Sent {len(files)} attachment(s) to {recipient}")
+          PY
